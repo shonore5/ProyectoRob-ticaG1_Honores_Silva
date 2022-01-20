@@ -1,0 +1,120 @@
+#Ricardo Silva
+#Steven Honores
+#P101
+from time import sleep
+from robodk import *
+from robolink import *
+import datetime
+
+from tkinter import *
+from tkinter import filedialog
+
+####procesamiento de imagen###
+import cv2
+import numpy as np
+RDK = Robolink()
+
+
+while(1):
+
+    VERDES = 'verdes'
+    RDK.setParam(VERDES,0)
+    ROJAS = 'rojas' 
+    RDK.setParam(ROJAS,0)
+    AZULES = 'azules'
+    RDK.setParam(AZULES,0)
+
+    SENSOR_VARIABLE = 'SENSOR'
+
+    path_rdk = RDK.getParam('PATH_OPENSTATION')
+    file_name = "/foto.jpg" #"RoboDK-Screenshot-HQ-" + date_str + ".png"
+
+    root = Tk()
+    root.withdraw()
+
+    #RDK.Render(False) # prevent flickering
+
+    # select a reference frame at the camera view location
+    ref_cam = RDK.Item("framecamera",ITEM_TYPE_FRAME)
+    ref_cam.setVisible(False)
+ 
+    cam_id = RDK.Cam2D_Add(ref_cam, 'FOCAL_LENGHT=6 FOV=32 FAR_LENGHT=200 SIZE=320x240 BG_COLOR=black')
+
+    ####procesamiento de imagen###
+    def WaitSensor():
+        if RDK.RunMode() == RUNMODE_SIMULATE:
+            # Simulate the sensor by waiting for the SENSOR status to turn to 1 (object present)
+            while RDK.getParam(SENSOR_VARIABLE) == 0:
+                pause(0.001)
+        else:
+            RDK.RunProgram('WaitSensor')
+        print("Part detected")
+
+    WaitSensor()
+    
+    RDK.Cam2D_Snapshot((path_rdk+file_name), cam_id)
+    print(path_rdk+file_name)
+    RDK.Cam2D_Close(cam_id)
+
+    # Delete the temporary reference added
+    #ref_cam.Delete()
+    cam_id.Delete()
+    print("Done")
+    #RDK.ShowMessage("High resolution snapshot saved: " + file_path, False)
+
+    img = cv2.imdecode(np.fromfile(path_rdk+file_name, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+    print(img.shape)
+
+    imagenHSV = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    ##verdes
+    verdeBajo = np.array([36, 100, 20], np.uint8)
+    verdeAlto = np.array([70, 255, 255], np.uint8)
+    maskVerde = cv2.inRange(imagenHSV, verdeBajo, verdeAlto)
+    ##verdes
+
+    ##rojos
+    rojoBajo1 = np.array([0, 100, 20], np.uint8)
+    rojoAlto1 = np.array([10, 255, 255], np.uint8)
+    rojoBajo2 = np.array([175, 100, 20], np.uint8)
+    rojoAlto2 = np.array([180, 255, 255], np.uint8)
+
+    maskRojo1 = cv2.inRange(imagenHSV, rojoBajo1, rojoAlto1)
+    maskRojo2 = cv2.inRange(imagenHSV, rojoBajo2, rojoAlto2)
+    maskRojo =  cv2.add(maskRojo1, maskRojo2)
+    ##rojos
+
+    ##azul
+    azul_bajos = np.array([40,0,0])
+    azul_altos = np.array([255,120,120])
+    maskazul = cv2.inRange(img, azul_bajos, azul_altos)
+    ##azul
+
+    contornosazul,oooooo1 = cv2.findContours(maskazul, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    print("contornos azules",len(contornosazul))
+
+    contornosrojo,oooooo2 = cv2.findContours(maskRojo, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    print("contornos rojo",len(contornosrojo))
+
+    contornosverde,oooooo3 = cv2.findContours(maskVerde, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    print("contornos verde",len(contornosverde))
+
+    ##enumerando por color
+    #RDK.ShowMessage("%s " %len(contornosazul)+"azules, " +"%s " %len(contornosrojo)+"rojos, " +"%s " %len(contornosverde)+"verdes",False)
+
+    RDK.setParam(VERDES,len(contornosverde))
+
+    RDK.setParam(ROJAS,len(contornosrojo))
+
+    RDK.setParam(AZULES,len(contornosazul))
+
+    def WaitSensorDes():
+        if RDK.RunMode() == RUNMODE_SIMULATE:
+            # Simulate the sensor by waiting for the SENSOR status to turn to 1 (object present)
+            while RDK.getParam(SENSOR_VARIABLE) == 1:
+                pause(0.001)
+        else:
+            RDK.RunProgram('WaitSensorDes')
+        print("Part detected")
+
+    WaitSensorDes()
